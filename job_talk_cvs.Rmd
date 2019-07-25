@@ -1,0 +1,183 @@
+---
+title: "Democratic Breakdown and Terrorism"
+author: "Christopher Junk"
+date: "7/23/2019"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, messages = FALSE, wwarning = FALSE)
+library(tidyverse)
+```
+
+```{r Load ESG and GTD data, cache=T, warning=F, message=F}
+gtd_names <- read.csv('C:/Users/Christopher/Documents/Data/GTD_0718dist/gtd_all_1970-2017.csv') %>% 
+  janitor::clean_names() %>% 
+  select(country_txt, country) %>% 
+  group_by(country, country_txt) %>% 
+  summarise()
+
+terror <- read.csv('C:/Users/Christopher/Documents/Data/esg_dom.csv') %>% 
+  janitor::clean_names() %>% 
+  left_join(gtd_names)
+```
+
+```{r ESG to country-year UoA, cache=T, warning=F, message=F}
+terror_count_year <- terror %>% 
+  mutate(cowcode = countrycode::countrycode(country_txt, 
+                                            origin = 'country.name', 
+                                            destination = 'cown'),
+         cowabb = countrycode::countrycode(country_txt, 
+                                            origin = 'country.name', 
+                                            destination = 'cowc'),
+         attack = 1, 
+         nwound = round(ifelse(nwound < 0, 
+                         NA, 
+                         nwound), 0), 
+         nkill = round(ifelse(nkill < 0, 
+                        NA, 
+                        nkill), 0)) %>% 
+  group_by(cowabb, cowcode, iyear) %>% 
+  summarise(n_attack = sum(attack), 
+            n_wound = sum(nwound, na.rm = T), 
+            n_kill = sum(nkill, na.rm = T)) %>% 
+  mutate(year = iyear)
+```
+
+```{r Create universe of possible cases, cache=T, warning=F, message=F}
+states <- read.csv('http://www.correlatesofwar.org/data-sets/state-system-membership/states2016/at_download/file') %>% 
+  mutate(duration = round(endyear - styear + 1, 0)) %>% 
+  add_count(stateabb) %>% 
+  group_by(ccode) %>% 
+  mutate(seq = seq_along(ccode), 
+         key = paste0(stateabb, seq)) %>% 
+  uncount(duration, .remove = F) %>% 
+  select(cowabb = stateabb,
+         cowcode = ccode,
+         styear, endyear, n, duration, seq, key) %>% 
+  ungroup() %>% 
+  group_by(key) %>% 
+  mutate(year_count = seq_along(key),
+         year = styear + year_count - 1) %>% 
+  filter(year >= 1970 & year <= 2007) %>% 
+  ungroup() %>% 
+  select(cowcode, cowabb, year)
+```
+
+```{r Join country-year terrorism with system composition, cache=T, message=F, warning=F}
+terror_country_year <- left_join(states, terror_count_year) %>% 
+  filter(!is.na(cowcode)) %>% 
+  mutate(n_attack = ifelse(is.na(n_attack), 
+                           0, 
+                           n_attack), 
+         n_wound = ifelse(is.na(n_wound), 
+                          0, 
+                          n_wound), 
+         n_kill = ifelse(is.na(n_kill), 
+                         0,
+                         n_kill), 
+         casualties = n_wound + n_kill, 
+         cas_rate = ifelse(n_attack == 0, 
+                           0, 
+                           casualties/n_attack)) %>% 
+  select(-iyear)
+```
+
+
+```{r Load VDEM data, cache=T, warning=F, message=F}
+vdem <- read.csv('C:/Users/Christopher/Documents/Data/vdem/vdem/V-Dem-CY-Full+Others-v9.csv') %>% 
+  janitor::clean_names()
+```
+
+```{r Select VDEM variables, cache=T, warning=F, message=F}
+vdem_keep <- vdem %>% 
+  select(year, 
+         cowcode = co_wcode, 
+         gdp_pc_log10 = e_migdppcln, #log10 GDP per capita 
+         pop = e_mipopula, #population
+         dem_breakdown = e_democracy_breakdowns, #number of previous democratic breakdowns 
+         elec_dem = v2x_polyarchy, #electoral democracy index
+         lib_dem = v2x_libdem, #liberal democracy index 
+         partic_dem = v2x_partipdem, #participation democracy index
+         egal_dem = v2x_egaldem, #egalitarian democracy index
+         free_express = v2x_freexp_altinf, #Freedom of expression and alternative sources of information index
+         free_assoc = v2x_frassoc_thick, #freedom of association thick index 
+         civ_soc_partic = v2x_cspart, #civil society participation index
+         barrier_parties = v2psbars, #barriers to parties
+         oppo_party_autonomy = v2psoppaut, #opposition parties autonomy
+         free_ac_cult = v2clacfree, #freedom of academic and cultural expression
+         free_relig = v2clrelig, #freedom of religion 
+         social_class_eq = v2clacjust, #social class equality in respect for civil liberties 
+         social_group_eq = v2clsocgrp, #social group equality in respect for civil liberties
+         cso_enter_exit_reg = v2cseeorgs, #civil society organization entry and exit (high values mean no government regulation)
+         cso_rep = v2csreprss, #civil society organization (CSO) repression 
+         cso_antisys = v2csantimv, #CSO anti-system movements 
+         relig_org_oppress = v2csrlgrep, #religios organization oppression 
+         n_coup = e_coups, #number of successful coups in a year 
+         gdp_grow = e_migdpgro, #GDP growth
+         int_conflict = e_miinteco, #Country participated in armed international conflict (war, 1000 deaths)
+         dom_conflict = e_miinterc, #experienced internal armed conflict 
+         coup_desc = e_pt_coup, #0 no coup; 1 failed coup; 2 success coup 
+         urbanization = e_miurbani, #urbanization (urban pop/pop)
+         edu_avg = e_peaveduc, #average education years for 15+ YOs
+         edu_gini = e_peedgini, #education gini 
+         polity2 = e_polity2, #polity2 combnined score 
+         resource_dist_equality = v2xeg_eqdr #equal distribution of resources 
+         ) %>% 
+  filter(year >= 1970 & year <= 2007) %>% 
+  mutate(weak_dem = ifelse(polity2 >= 1 & polity2 <= 6, 
+                           1, 
+                           0),
+         democracy = ifelse(polity2 > 6, 
+                            1, 
+                            0),
+         failed_coup = ifelse(coup_desc == 1, 
+                              1, 
+                              0)) %>% 
+  select(-coup_desc)
+
+terror_vdem_country_year <- left_join(terror_country_year, vdem_keep) %>% 
+  select(-cowcode, -n_kill, -n_wound)
+```
+
+```{r AMELIA multiple imputation of missing VDEM values, cache = T, warning=F, message=F}
+set.seed(7117)
+ter_vdem_country_year_amelia <- Amelia::amelia(terror_vdem_country_year,
+                                               m = 5,
+                                               ts = "year",
+                                               cs = "cowabb")
+```
+
+```{r EBA, cache=T, warning=F, message=F}
+library(ExtremeBounds)
+analysis_imp1 <- ter_vdem_country_year_amelia[1]$imputations[1] %>% data.frame %>% 
+  janitor::clean_names() 
+
+colnames(analysis_imp1) <- stringr::str_replace_all(colnames(analysis_imp1), 
+                                                    "imp1_",
+                                                    "")
+analysis_imp1 <- analysis_imp1 %>% 
+  mutate(ln_n_attack = log10(n_attack + .0000001))
+
+free = c("pop", "gdp_pc_log10")
+focus = c("dem_breakdown", "elec_dem", "lib_dem", "partic_dem", "egal_dem", "free_express", "free_assoc", "civ_soc_partic", "barrier_parties", "oppo_party_autonomy", "free_ac_cult", "free_relig", "social_class_eq", "social_group_eq", "cso_enter_exit_reg", "cso_rep", "cso_antisys", "relig_org_oppress", "n_coup", "gdp_grow", "int_conflict", "dom_conflict", "urbanization", "edu_avg", "edu_gini", "polity2", "resource_dist_equality", "weak_dem", "democracy", "failed_coup")
+
+se.robust <- function(model.object) {
+  model.fit <- sandwich::vcovHC(model.object, type = "HC")
+  out <- sqrt(diag(model.fit))
+  return(out)
+}
+
+eba <- eba(data = analysis_imp1, 
+           y = "ln_n_attack", 
+           free = free,
+           focus = focus, 
+           vif = 7, 
+           weights = "adj.r.squared", 
+           se.fun = se.robust)
+```
+
+```{r First EBA histograms}
+
+```
+

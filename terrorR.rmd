@@ -1,0 +1,83 @@
+---
+title: "Terrorism"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+library(sandwich)
+
+se.robust <- function(model.object) {
+  model.fit <- vcovHC(model.object, type = "HC")
+  out <- sqrt(diag(model.fit))
+  return(out)
+}
+
+```
+
+
+```{r}
+library(ExtremeBounds)
+library(MASS)
+library(glm2)
+library(statmod)
+
+free.variables = c("e_migdppc", "e_population")
+options(na.action="na.exclude") 
+
+focus.variables = c("v2x_polyarchy", "v2x_libdem", "v2x_partipdem", "v2x_freexp_altinf", "v2x_egaldem", "v2x_frassoc_thick", "v2psoppaut", "v2x_cspart", "v2psbars", "v2clrelig", "v2clsocgrp", "v2clacfree", "v2cseeorgs", "v2csreprss", "v2csantimv", "v2csrlgrep", "e_openl", "e_coups", "e_democracy_breakdowns", "e_democracy_duration", "e_migdpgro", "e_miinteco", "e_miinterc", "e_miurbani", "e_peaveduc", "e_peginiwi", "e_polity2", "weakdem")
+
+terrorism3.eba <- eba(data = terr.out$imputations[[2]], y = "terrattack", free = free.variables, focus = focus.variables, draws = 1000, reg.fun = glm.nb)
+
+```
+
+
+```{r}
+library(ExtremeBounds)
+library(MASS)
+library(glm2)
+
+free.variables = c("e_migdppc", "e_population")
+
+completenew$terrattackln <- log(completenew$terrattack + 1)
+
+focus.variables = c("dembreak", "v2x_polyarchy", "v2x_libdem", "v2x_partipdem", "v2x_freexp_altinf", "v2x_egaldem", "v2x_frassoc_thick", "v2psoppaut", "v2x_cspart", "v2psbars", "v2clrelig", "v2clsocgrp", "v2cseeorgs", "v2csreprss", "v2csantimv", "v2csrlgrep", "e_openl", "e_mefree", "e_polcomp", "e_exconst", "v2x_jucon", "e_coups", "e_democracy_duration", "e_migdpgro", "e_miinteco", "e_miinterc", "e_miurbani", "e_peaveduc", "e_peginiwi", "e_polity2", "weakdem")
+
+terrorism4.eba <- eba(data = completenew, y = "terrattackln", free = free.variables, focus = focus.variables, vif = 7, weights = "adj.r.squared", se.fun = se.robust)
+
+```
+
+```{r}
+library(ExtremeBounds)
+library(MASS)
+library(glm2)
+
+free.variables = c("e_migdppc", "e_population")
+
+completenew$terrattackln <- log(completenew$terrattack + 1)
+
+focus.variables = c("dembreak", "v2x_polyarchy", "v2x_libdem", "v2x_partipdem", "v2x_freexp_altinf", "v2x_egaldem", "v2x_frassoc_thick", "v2psoppaut", "v2x_cspart", "v2psbars", "v2clrelig", "v2clsocgrp", "v2cseeorgs", "v2csreprss", "v2csantimv", "v2csrlgrep", "e_openl", "e_mefree", "e_polcomp", "e_exconst", "v2x_jucon", "e_coups", "e_democracy_duration", "e_migdpgro", "e_miinteco", "e_miinterc", "e_miurbani", "e_peaveduc", "e_peginiwi", "e_polity2", "weakdem")
+
+terrtest.eba <- eba(data = completenew, y = "terrattackln", free = free.variables, focus = focus.variables, vif = 7, weights = "adj.r.squared", se.fun = se.robust, draws = 5000)
+```
+
+
+
+```{r}
+library(ExtremeBounds)
+
+par("mar") 
+par(mar=c(1,1,1,1))
+
+hist(terrorism4.eba, main = c(e_migdppc = "GDP per capita", e_population = "Population", dembreak = "Democracy Breakdowns", e_polity2 = "Polity Score", v2x_polyarchy = "Electoral Democracy", v2x_libdem = "Liberal Democracy", v2x_partipdem = "Participatory Democracy", v2x_freexp_altinf = "Freedom of Expression", v2x_egaldem = "Egalitarian Democracy", v2x_frassoc_thick = "Freedom of Association", v2psoppaut = "Opposition Parties", v2x_cspart = "Civil Society Participation", v2psbars = "Barriers to Parties", v2clrelig = "Freedom of Religion", v2clsocgrp = "Social Group Equality", v2cseeorgs = "Civil Society Organizations", v2csreprss = "Civil Society Repression", v2csantimv = "Anti-System Civil Society",  v2csrlgrep = "Religious Repression", e_openl = "Legislature Exists", e_mefree = "Media Freedom", e_polcomp = "Political Competition", e_exconst = "Executive Constraints", v2x_jucon = "Judicial Constraints", e_coups = "Number of Coups", e_democracy_duration = "Regime Duration", e_migdpgro = "GDP growth", e_miinteco = "Interstate Conflict", e_miinterc = "Intrastate Conflict", e_miurbani = "Urbanization", e_peaveduc = "Education 15+", e_peginiwi = "Inequality", weakdem = "Weak Democracy"))
+```
+
+```{r}
+library(ExtremeBounds)
+
+par("mar") 
+par(mar=c(1,1,1,1))
+
+hist(terrtest.eba, main = c(e_migdppc = "GDP per capita", e_population = "Population", dembreak = "Democracy Breakdowns", e_polity2 = "Polity Score", v2x_polyarchy = "Electoral Democracy", v2x_libdem = "Liberal Democracy", v2x_partipdem = "Participatory Democracy", v2x_freexp_altinf = "Freedom of Expression", v2x_egaldem = "Egalitarian Democracy", v2x_frassoc_thick = "Freedom of Association", v2psoppaut = "Opposition Parties", v2x_cspart = "Civil Society Participation", v2psbars = "Barriers to Parties", v2clrelig = "Freedom of Religion", v2clsocgrp = "Social Group Equality", v2cseeorgs = "Civil Society Organizations", v2csreprss = "Civil Society Repression", v2csantimv = "Anti-System Civil Society",  v2csrlgrep = "Religious Repression", e_openl = "Legislature Exists", e_mefree = "Media Freedom", e_polcomp = "Political Competition", e_exconst = "Executive Constraints", v2x_jucon = "Judicial Constraints", e_coups = "Number of Coups", e_democracy_duration = "Regime Duration", e_migdpgro = "GDP growth", e_miinteco = "Interstate Conflict", e_miinterc = "Intrastate Conflict", e_miurbani = "Urbanization", e_peaveduc = "Education 15+", e_peginiwi = "Inequality", weakdem = "Weak Democracy"))
+```
