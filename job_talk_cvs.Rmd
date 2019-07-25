@@ -3,11 +3,13 @@ title: "Democratic Breakdown and Terrorism"
 author: "Christopher Junk"
 date: "7/23/2019"
 output: ioslides_presentation
+
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, cache = TRUE, messages = FALSE, wwarning = FALSE)
 library(tidyverse)
+library(MASS)
 ```
 
 ```{r Load ESG and GTD data, cache=T, warning=F, message=F}
@@ -140,7 +142,7 @@ terror_vdem_country_year <- left_join(terror_country_year, vdem_keep) %>%
   select(-cowcode, -n_kill, -n_wound)
 ```
 
-```{r AMELIA multiple imputation of missing VDEM values, cache = T, warning=F, message=F}
+```{r AMELIA multiple imputation of missing VDEM values, cache = T, warning=F, message=F, include=F}
 set.seed(7117)
 ter_vdem_country_year_amelia <- Amelia::amelia(terror_vdem_country_year,
                                                m = 5,
@@ -148,7 +150,9 @@ ter_vdem_country_year_amelia <- Amelia::amelia(terror_vdem_country_year,
                                                cs = "cowabb")
 ```
 
-```{r EBA, cache=T, warning=F, message=F}
+#  
+
+```{r EBA, cache=T, warning=F, message=F, warning=F}
 library(ExtremeBounds)
 analysis_imp1 <- ter_vdem_country_year_amelia[1]$imputations[1] %>% data.frame %>% 
   janitor::clean_names() 
@@ -177,7 +181,27 @@ eba <- eba(data = analysis_imp1,
            se.fun = se.robust)
 ```
 
-```{r First EBA histograms}
 
+```{r First EBA histograms, cache=T, warning=F}
+hist(eba)
+```
+
+```{r EBA for negative binomial, include=F, cache=T}
+eba_nb <- eba(data = analysis_imp1, 
+              y = "n_attack", 
+              free = free, 
+              focus = focus, 
+              draws = 1000, 
+              reg.fun = glm.nb)
+```
+
+```{r EBA for casualty rate, include=F, cache=T}
+eba_cas_rate <- eba(data = analysis_imp1, 
+           y = "cas_rate", 
+           free = free,
+           focus = focus, 
+           vif = 7, 
+           weights = "adj.r.squared", 
+           se.fun = se.robust)
 ```
 
