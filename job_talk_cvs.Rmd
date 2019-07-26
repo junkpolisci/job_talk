@@ -3,13 +3,62 @@ title: "Democratic Breakdown and Terrorism"
 author: "Christopher Junk"
 date: "7/23/2019"
 output: ioslides_presentation
+bibliography: 'C:/Users/Christopher/Documents/job_talk/bib.bib'
 
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, cache = TRUE, messages = FALSE, wwarning = FALSE)
 library(tidyverse)
+library(dotwhisker)
 ```
+
+## What explains the variation in terrorism across countries and years? 
+
+The most common finding in the terrorism literature is that terrorism is most common in democracies [@chenoweth2013].
+
+Several proposed reasons: 
+
+1. Competitive spaces  [@chenoweth2010]
+1. Easy to coerce change through public opinion [@pape2003] 
+1. Intransigence [@young2011]
+1. Opportunity  
+    * civil liberties make organization easier [@eubank1994]   
+    * press freedom makes terrorism more visible [@hoffman2006]
+  
+## Full, stable democracies are not the problem
+
+Characteristics of a democracy: 
+
+* frequent, free, and competitive elections  
+* constrained executives 
+* protected civil and political freedoms 
+
+New democracies experience more terrorism [@piazza2013].
+
+The relationship between democratic-ness and terrorism is curvilinear [@abadie2006].
+
+## What is it about struggling democracies?
+
+* Less capable state apparatus  
+* Less developed grievance mechanisms  
+* Less economic development 
+
+None of these explain why citizens resort to violence instead of legal political action.
+
+## Political disillusionment and democratic breakdowns
+
+Democratic breakdown:  
+
+* A country that was coded a democracy in year $t-1$ is no longer considered a democracy in year $t$ [@boix2013].
+
+Most of the world's weak democracies have had previous democratic breakdowns.  
+
+* political disillusionment  
+* lack of faith in legal political processes  
+* experience with freedoms being revoked  
+
+Once faith in legal processes is gone, citizens must resort to any means necessary to accomplish political goals. 
 
 ```{r Load ESG and GTD data, cache=T, warning=F, message=F}
 gtd_names <- read.csv('C:/Users/Christopher/Documents/Data/GTD_0718dist/gtd_all_1970-2017.csv') %>% 
@@ -90,8 +139,32 @@ vdem <- read.csv('C:/Users/Christopher/Documents/Data/vdem/vdem/V-Dem-CY-Full+Ot
 ```
 
 ```{r Select VDEM variables, cache=T, warning=F, message=F}
+vdem <- vdem %>% 
+  mutate(region_cont = case_when(e_regiongeo == 1 ~ "Western Europe", 
+                                 e_regiongeo == 2 ~ "Northern Europe", 
+                                 e_regiongeo == 3 ~ "Southern Europe", 
+                                 e_regiongeo == 4 ~ "Eastern Europe", 
+                                 e_regiongeo == 5 ~ "Northern Africa", 
+                                 e_regiongeo == 6 ~ "Western Africa", 
+                                 e_regiongeo == 7 ~ "Central Africa", 
+                                 e_regiongeo == 8 ~ "Eastern Africa", 
+                                 e_regiongeo == 9 ~ "Southern Africa", 
+                                 e_regiongeo == 10 ~ "Western Asia", 
+                                 e_regiongeo == 11 ~ "Central Asia", 
+                                 e_regiongeo == 12 ~ "East Asia", 
+                                 e_regiongeo == 13 ~ "South-East Asia", 
+                                 e_regiongeo == 14 ~ "South Asia", 
+                                 e_regiongeo == 15 ~ "Oceania", 
+                                 e_regiongeo == 16 ~ "North America", 
+                                 e_regiongeo == 17 ~ "Central America", 
+                                 e_regiongeo == 18 ~ "South America", 
+                                 e_regiongeo == 19 ~ "Caribbean", 
+                                 is.na(e_regiongeo) ~ "", 
+                                 ))
+
 vdem_keep <- vdem %>% 
   dplyr::select(year, 
+                region_cont,
          cowcode = co_wcode, 
          gdp_pc_log10 = e_migdppcln, #log10 GDP per capita 
          pop = e_mipopula, #population
@@ -133,12 +206,228 @@ vdem_keep <- vdem %>%
                             0),
          failed_coup = ifelse(coup_desc == 1, 
                               1, 
-                              0)) %>% 
+                              0),
+         cowabb = countrycode::countrycode(cowcode, 
+                                           'cown',
+                                           'cowc')) %>% 
   dplyr::select(-coup_desc)
 
+region_country <- vdem_keep %>% dplyr::select(cowabb, region_cont) %>% 
+  group_by(cowabb) %>% 
+  summarise(region_cont = first(region_cont))
+
 terror_vdem_country_year <- left_join(terror_country_year, vdem_keep) %>% 
-  dplyr::select(-cowcode, -n_kill, -n_wound)
+  dplyr::select(-cowcode, -n_kill, -n_wound, -region_cont)
+
+
+
+#Define labels for variables 
+labels <- c(pop = "Population", 
+            pop_log10 = "Log10 Population",
+              gdp_pc_log10 = "Log10 GDP PC", 
+              dem_breakdown = "Dem. Breakdowns", 
+              elec_dem = "Elect. Dem.", 
+              lib_dem = "Lib. Dem.", 
+              partic_dem = "Partic. Dem", 
+              egal_dem = "Egal. Dem.",
+              free_express = "Free Expr.", 
+              free_assoc = "Free Assoc.", 
+              civ_soc_partic = "Civ. Soc. Partic.", 
+              barrier_parties = "Pol. Party Barriers", 
+              oppo_party_autonomy = "Oppo. Party Aut.", 
+              free_ac_cult = "Free Ac./Cult. Expr.", 
+              free_relig = "Relig. Free", 
+              social_class_eq = "Class Eq.",
+              social_group_eq = "Group Eq.",
+              cso_enter_exit_reg = "Civ. Soc. Orgs.",
+              cso_rep = "Civ. Soc. Repr.",
+              cso_antisys = "Anti-System Civ. Soc.",
+              relig_org_oppress = "Relig. Repr.",
+              n_coup = "N Coups",
+              gdp_grow = "GDP Growth",
+              int_conflict = "Int. Conflict",
+              dom_conflict = "Dom. Conflict",
+              urbanization = "Urbanization",
+              edu_avg = "15+ Edu. Avg.",
+              edu_gini = "Edu. Ineq.",
+              polity2 = "Polity 2",
+              resource_dist_equality = "Resource Ineq.",
+              weak_dem = "Weak Dem.",
+              democracy = "Full Dem.",
+              failed_coup = "Failed Coup")
 ```
+## <!-- World Map  -->
+
+```{r Map of democratic breakdowns, cache=T, message=F, warning=F, fig.dim=c(8, 6)}
+world_map <- map_data('world') %>% filter(region != "Antarctica") %>% fortify
+
+dem_breakdown_country <- terror_vdem_country_year %>% 
+  mutate(region = countrycode::countrycode(cowabb, 
+                                          "cowc", 
+                                          "country.name")) %>% 
+  dplyr::select(region, cowabb, n_attack, dem_breakdown) %>% 
+  group_by(region) %>% 
+  summarise(n_attack = sum(n_attack),
+            dem_breakdown = max(dem_breakdown), 
+            cowabb = first(cowabb)) %>% 
+  ungroup() %>% 
+  mutate(dem_breakdown = ifelse(is.na(dem_breakdown), 
+                                0, 
+                                dem_breakdown)) %>% 
+  filter(!is.na(region))
+
+world_map_breakdowns <- world_map %>% left_join(dem_breakdown_country) %>% 
+  mutate(n_attack = ifelse(is.na(n_attack),
+                           0,
+                           n_attack), 
+         dem_breakdown = ifelse(is.na(dem_breakdown), 
+                                0, 
+                                dem_breakdown),
+         dem_breakdown = ifelse(region == "Russia", 
+                                1, 
+                                dem_breakdown))
+
+ggplot(data = world_map_breakdowns) +
+  geom_map(map = world_map_breakdowns,
+       aes(x = long, y = lat, group = group, map_id=region,
+           fill = dem_breakdown),
+       colour = "#7f7f7f", size=0.5) +
+  scale_fill_continuous(low = 'white', 
+                        high = 'red') + 
+  labs(title = "Map of Democratic Breakdowns",
+       fill = "Democratic Breakdown",
+       x = "Longitude", 
+       y ="Latitude") + 
+  theme(legend.position = c(.15, .18),
+        legend.background = element_blank(),
+        plot.title = element_text(hjust=.5))
+
+```
+
+```{r Animated Terrorism Map, cache=T, warning=F, message=F}
+# ter_map_df <- terror_country_year %>% 
+#   mutate(region = countrycode::countrycode(cowabb, 
+#                                           "cowc", 
+#                                           "country.name")) %>% 
+#   dplyr::select(region, year, n_attack) %>% 
+#   filter(!is.na(region))
+# 
+# world_map_terror_year <- inner_join(ter_map_df, world_map)
+# 
+# library(gganimate)
+# 
+# terror_animate <- ggplot(data = world_map_terror_year) +
+#   geom_map(map = world_map_terror_year,
+#        aes(x = long, y = lat, group = group, map_id=region,
+#            fill = n_attack),
+#        colour = "#7f7f7f", size=0.5) + 
+#   transition_time(year)
+# 
+# animate(terror_animate)
+```
+
+
+
+## Terrorism Timelines 
+
+```{r terror timelines, cache=T, warning=F, message=F}
+terror_vdem_country_year %>% 
+  filter(cowabb %in% c("SPN", "USA", "ARG", "FRN")) %>% 
+  ggplot(aes(x = year, y = n_attack, color = cowabb)) + 
+  geom_line(size = 2) + 
+  labs(title = "Timeline of terrorism in Argentina, Spain, France, and USA", 
+       x = "Year", 
+       y = "Number of Attacks", 
+       color = "Country") + 
+  theme(legend.position = c(.8,.8),
+        plot.title = element_text(hjust = .5))
+```
+
+
+## Distribution of Terrorist Attacks
+
+```{r Histogram n_attack, cache=T, warning=F, message=F}
+terror_vdem_country_year %>% 
+  ggplot(aes(n_attack)) +
+  geom_histogram(binwidth = 10) + 
+  labs(title = "Distribution of Terrorist Attacks per Year", 
+       y = "Frequency", 
+       x = "Number of Attacks") + 
+  theme(plot.title = element_text(hjust = .5))
+```
+
+## Percent of Country-Years with Attack
+```{r Percent country_years with attack, cache=T, warning=F, message=F}
+
+terror_vdem_country_year %>% 
+  mutate(attack_binary = ifelse(n_attack > 0, 
+                                "Yes", 
+                                "No")) %>% 
+  count(attack_binary) %>% 
+  mutate(perc = n/nrow(terror_vdem_country_year)) %>% 
+  ggplot(aes(x = attack_binary, 
+             y = perc)) + 
+  geom_col() + 
+  labs(y = "Percent", 
+       x = "Attack Occurred?")
+```
+
+Must account for the abundance of rows with zero attacks. 
+
+## Analytic Outline  
+
+1. Variables of Interest
+
+1. Dealing with missing data
+
+1. Estimating zero inflated negative binomial models 
+
+1. Extreme bounds analysis
+
+## Missing Data: Population
+
+```{r Missing population, cache=T, warning = F, message=F, fig.dim= c(8,6)}
+terror_vdem_country_year %>% 
+  dplyr::select(cowabb, 
+         pop, 
+         year) %>%
+  mutate(miss = ifelse(is.na(pop), 
+                       1, 
+                       0)) %>% 
+  add_count(cowabb, name = 'n_obs') %>% 
+  group_by(cowabb) %>% 
+  summarise(n_obs = mean(n_obs),
+            n_miss = sum(miss)) %>% 
+  mutate(cowabb = reorder(cowabb, (n_miss/n_obs))) %>% 
+  ggplot(aes(x = cowabb, y= n_miss/n_obs)) +
+  geom_col() + 
+  labs( 
+       x = "Country", 
+       y = "Percent Missing") + 
+  theme(axis.text.x = element_blank(),
+        plot.title = element_text(hjust = .5))
+  
+```  
+
+If 100% observations are missing, drop the country. If <100% are missing, replace with mean.  
+
+Population is slow-moving over time, so while not perfect this is better than dropping several hundred observations. 
+
+
+## Missing Data: Everything Else 
+
+AMELIA II package in R using [@honaker2011]
+
+Assume: 
+
+* The full data $D$ is distributed multivariate normal $D\sim N(\mu,\Sigma)$ where $\mu$ is a vector of means and $\Sigma$ is a covariance matrix. 
+
+* Data is missing at random (MAR)
+
+* Expectation Maximization with Bootstrapping (EMB) algorithm 
+    * Bootstraps from a the posterior distribution of the likelihood function found from assuming the data is MAR and a flat prior assumption of the multivariate normal distribution.
+
+
 
 ```{r AMELIA multiple imputation of missing VDEM values, cache = T, warning=F, message=F, include=F}
 set.seed(7117)
@@ -147,6 +436,19 @@ ter_vdem_country_year_amelia <- Amelia::amelia(terror_vdem_country_year,
                                                ts = "year",
                                                cs = "cowabb")
 ```
+
+
+## Zero-inflated negative binomial (ZINB) regression
+
+Two-stages:  
+
+1. Logit to see the probability there are zero attacks  
+
+1. If there is an attack, negative binomial to estimate how many
+
+A regular negative binomial produces about the same results, but the ZINB more properly accounts for the over-representation of zeros. 
+
+## <!--Zero Inflated Negative Binomial Coefficient Plot-->
 
 ```{r ZINB number of attacks FULL SAMPLE, cache=T, include=F, warnings = F, message=F}
 
@@ -161,21 +463,119 @@ mean_pop <- terror_vdem_country_year %>%
   group_by(cowabb) %>% 
   summarise(mean_pop = mean(pop, na.rm = T))
 
+no_pop_data <- mean_pop %>% 
+  filter(is.nan(mean_pop)) %>% 
+  dplyr::select(cowabb)
+
+no_pop_data <- unique(no_pop_data$cowabb)  
+
+analysis_imp1 <- analysis_imp1 %>% 
+  left_join(mean_pop) %>% 
+  mutate(pop = ifelse(pop < 0, 
+                      mean_pop, 
+                      pop), 
+         pop_log10 = log10(pop)) %>% 
+  filter(!(cowabb %in% no_pop_data))
 
 
 
-zinb_full <- pscl::zeroinfl(n_attack ~ log10(abs(pop)+1) + gdp_pc_log10 + dem_breakdown + edu_avg + dom_conflict + int_conflict + civ_soc_partic + democracy + weak_dem | log10(pop) + gdp_pc_log10 + edu_avg + dom_conflict + int_conflict + democracy + weak_dem, 
+zinb_full <- pscl::zeroinfl(n_attack ~ pop_log10 + gdp_pc_log10 + dem_breakdown + edu_avg + dom_conflict + int_conflict + civ_soc_partic + democracy + weak_dem + as.factor(cowabb) | pop_log10 + gdp_pc_log10 + edu_avg + dom_conflict + int_conflict + democracy + weak_dem, 
                       data = analysis_imp1, 
                       dist = 'negbin')
 
-zinb_full$coefficients$count
-summary(zinb_full)
 ```
 
-```{r ZINB predicted values, cache=T, include=F}
-prediction_breakdowns <- analysis_imp1 %>% 
-  summarise(pop = mean(log10(pop)))
 
+```{r ZINB coefplot, cache=T, warnings=F, message=F}
+se_zinb_full <- sqrt(diag(vcov(zinb_full)))
+coef_zinb_full <- coef(zinb_full)
+
+zinb_full_coef_se <- data.frame(se_zinb_full, coef_zinb_full) %>% 
+  mutate(variable = row.names(.),
+         model = ifelse(stringr::str_detect(variable, 
+                                            "count") == T,
+                        "Count", 
+                        "Zero"),
+         variable = stringr::str_replace_all(variable, 
+                                             "count_", 
+                                             "") %>% 
+           stringr::str_replace_all("zero_", 
+                                    ""),
+         factor = ifelse(str_detect(variable, 
+                                    "as.factor") == T,
+                         1,
+                         0)) %>% 
+  filter(factor == 0) %>% 
+  dplyr::select(std.error = se_zinb_full, 
+                estimate = coef_zinb_full, 
+                term = variable, 
+                model)
+
+dw_plot(zinb_full_coef_se) %>%
+  relabel_predictors(labels) +
+  geom_vline(xintercept = 0,
+             color = 'red') + 
+  facet_wrap(.~model) + 
+  labs(title = "Zero-Inflated Negative Binomial of Attacks in a Country-Year", 
+       caption = "N = 5,784. 168 countries.") +
+  theme(legend.position = 'none',
+        plot.title = element_text(hjust = .5))
+
+```
+
+## <!--NB Predicted Values-->
+```{r NB predicted values, cache=T, include=T, warning=F, message=F}
+prediction_breakdowns <- analysis_imp1 %>% 
+  summarise(pop_log10 = mean(pop_log10), 
+            gdp_pc_log10 = mean(gdp_pc_log10), 
+            dem_breakdown = mean(dem_breakdown), 
+            edu_avg = mean(edu_avg), 
+            dom_conflict = mean(dom_conflict), 
+            int_conflict = mean(int_conflict), 
+            civ_soc_partic = mean(civ_soc_partic), 
+            democracy = mean(democracy), 
+            weak_dem = mean(weak_dem)) %>% 
+  uncount(5) %>% 
+  mutate(dem_breakdown = seq_along(row_number()) - 1)
+
+nb_full_no_fe <- MASS::glm.nb(n_attack ~ pop_log10 + gdp_pc_log10 + dem_breakdown + edu_avg + dom_conflict + int_conflict + civ_soc_partic + democracy + weak_dem, 
+                      data = analysis_imp1)
+
+
+pred <- predict(nb_full_no_fe, 
+        prediction_breakdowns, 
+        MC = 25000,
+        conf = .95,
+        se.fit = TRUE,
+        type = 'response')
+
+data.frame(yhat = pred$fit, lb = (pred$fit - 1.96 * pred$se.fit), ub = (pred$fit + 1.96 * pred$se.fit)) %>% 
+  cbind(prediction_breakdowns) %>% 
+  ggplot(aes(x = dem_breakdown, y = yhat)) + 
+  geom_errorbar(aes(ymin = lb, ymax = ub), alpha = .5, size = 1) + 
+  geom_point(size = 3) + 
+  labs(title = "Predicted number of terrorist attacks from negative binomial", 
+       y = "Number of Attacks", 
+       x = "Number of Democratic Breakdowns")
+
+```
+
+```{r read evangalization data, cache=T, warning=F, message=F}
+evang <- openxlsx::read.xlsx("C:/Users/Christopher/Documents/Data/Data4MissionaryRootsOfLiberalDemocracywDescription.xlsx") %>% 
+  janitor::clean_names() %>% 
+  dplyr::select(epct1900, 
+         prec_mastername) %>% 
+  mutate(cowabb = countrycode::countrycode(prec_mastername, 
+                                           'country.name', 
+                                           'cowc'))
+
+analysis_iv <- analysis_imp1 %>% left_join(evang) %>%
+  filter(!is.na(epct1900))
+```
+
+```{r IVreg, cache=T, message=F, warning=F}
+# iv_reg <- AER::ivreg(n_attack  ~ pop_log10 + gdp_pc_log10 + dem_breakdown | epct1900 + edu_avg + dom_conflict + int_conflict + civ_soc_partic + democracy + weak_dem + as.factor(cowabb),
+#                      data = analysis_iv)
 ```
 
 
@@ -208,43 +608,45 @@ eba <- eba(data = analysis_imp1,
            se.fun = se.robust)
 ```
 
-## 
+
+## Extreme Bounds Analysis (EBA)
+
+$y = \alpha_j + \beta_jv + \gamma_jF + \delta_jD + \epsilon$
+
+$v$:(optional) variable of focus to test its robustness  
+$F$: vector of 'free' variables integral to correct estimation and always included
+$D$: vector of 'doubtful' variables, a permutation of which is included in each regression 
+
+1. Iteratively estimate an OLS regression with a different permutations of the regressors predicting the outcome.  
+    * Restrict models based on a variance inflation factor (vif < 7) to avoid high multicollinearity.  
+    * Use heteroskedasticity robust standard errors 
+    * Weigh regressions according to the resultant $\bar{R}^2$  
+1. Interpret the distribution of coefficients from each model as a robustness measures of variable importance. 
+
+## EBA Details 
+
+* 31,930 regressions 
+* Dependent Variable: Logge number of attacks  
+* Model: OLS 
+* Outcome: identified 10 variables that robustly associate with increased occurrence of terrorism  
+    <!-- * barriers to political parties   -->
+    <!-- * democratic breakdowns   -->
+    <!-- * civil war   -->
+    <!-- * international war   -->
+    <!-- * autonomy opposition parties   -->
+    <!-- * Polity 2 democracy index   -->
+    <!-- * population   -->
+    <!-- * resource inequality   -->
+    <!-- * group inequality in access to resources   -->
+    <!-- * weak democracy -->
+
+<!-- __Free:__ Logged population, logged GDP PC   -->
+<!-- __Doubtful:__ democratic breakdowns, electoral democracy, liberal democracy, participatory democracy, egalitarian democracy -->
+    
+
+## <!-- EBA Coefficient Distributions -->
 
 ```{r EBA Coefplot, cache=T, message=F, warning=F, fig.dim = c(7.5, 5.5), fig.align='center'}
-#Define labels for variables 
-labels <- c(pop = "Population", 
-              gdp_pc_log10 = "Logged GDP PC", 
-              dem_breakdown = "Dem. Breakdowns", 
-              elec_dem = "Elect. Dem.", 
-              lib_dem = "Lib. Dem.", 
-              partic_dem = "Partic. Dem", 
-              egal_dem = "Egal. Dem.",
-              free_express = "Free Expr.", 
-              free_assoc = "Free Assoc.", 
-              civ_soc_partic = "Civ. Soc. Partic.", 
-              barrier_parties = "Pol. Party Barriers", 
-              oppo_party_autonomy = "Oppo. Party Aut.", 
-              free_ac_cult = "Free Ac./Cult. Expr.", 
-              free_relig = "Relig. Free", 
-              social_class_eq = "Class Eq.",
-              social_group_eq = "Group Eq.",
-              cso_enter_exit_reg = "Civ. Soc. Orgs.",
-              cso_rep = "Civ. Soc. Repr.",
-              cso_antisys = "Anti-System Civ. Soc.",
-              relig_org_oppress = "Relig. Repr.",
-              n_coup = "N Coups",
-              gdp_grow = "GDP Growth",
-              int_conflict = "Int. Conflict",
-              dom_conflict = "Dom. Conflict",
-              urbanization = "Urbanization",
-              edu_avg = "15+ Edu. Avg.",
-              edu_gini = "Edu. Ineq.",
-              polity2 = "Polity 2",
-              resource_dist_equality = "Resource Ineq.",
-              weak_dem = "Weak Dem.",
-              democracy = "Full Dem.",
-              failed_coup = "Failed Coup")
-
 eba_coef <- eba$regressions$beta %>% data.frame %>% dplyr::select(-X.Intercept.)
 
 eba_coef_gather <- gather(eba_coef) %>%
@@ -269,7 +671,7 @@ ggplot(eba_coef_gather) +
 
 ```
 
-## 
+## <!-- EBA TOP Coefficient Distributions -->
 
 ```{r EBA hist for only 95 significant variables, cache=T, include=T, fig.dim = c(7.5, 5.5), fig.align='center'}
 eba_coef_gather %>% 
@@ -300,7 +702,7 @@ eba_coef_gather %>%
         axis.text.x = element_text(size = 7), 
         plot.title = element_text(size = 15),
         axis.title = element_blank())
-```
+```  
 
 ```{r EBA for casualty rate, include=F, cache=T}
 eba_cas_rate <- eba(data = analysis_imp1, 
@@ -311,3 +713,18 @@ eba_cas_rate <- eba(data = analysis_imp1,
            weights = "adj.r.squared", 
            se.fun = se.robust)
 ```
+
+
+## Implications 
+
+* A history of democratic breakdowns serves as a proxy for political disillusionment.  
+
+* Political disillusionment results in illegal political action because of loss of faith in legal political avenues. 
+
+* Other robust associations with terrorism occurrence include inequality (+), war (+), inequality (-), and weak democracies (-)
+
+* Next steps involve building a predictive model based on these findings. 
+
+* Future research must disaggregate to gain more leverage on policy-relevant inferences. 
+
+## References
