@@ -9,13 +9,12 @@ output: ioslides_presentation
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, cache = TRUE, messages = FALSE, wwarning = FALSE)
 library(tidyverse)
-library(MASS)
 ```
 
 ```{r Load ESG and GTD data, cache=T, warning=F, message=F}
 gtd_names <- read.csv('C:/Users/Christopher/Documents/Data/GTD_0718dist/gtd_all_1970-2017.csv') %>% 
   janitor::clean_names() %>% 
-  select(country_txt, country) %>% 
+  dplyr::select(country_txt, country) %>% 
   group_by(country, country_txt) %>% 
   summarise()
 
@@ -54,7 +53,7 @@ states <- read.csv('http://www.correlatesofwar.org/data-sets/state-system-member
   mutate(seq = seq_along(ccode), 
          key = paste0(stateabb, seq)) %>% 
   uncount(duration, .remove = F) %>% 
-  select(cowabb = stateabb,
+  dplyr::select(cowabb = stateabb,
          cowcode = ccode,
          styear, endyear, n, duration, seq, key) %>% 
   ungroup() %>% 
@@ -63,7 +62,7 @@ states <- read.csv('http://www.correlatesofwar.org/data-sets/state-system-member
          year = styear + year_count - 1) %>% 
   filter(year >= 1970 & year <= 2007) %>% 
   ungroup() %>% 
-  select(cowcode, cowabb, year)
+  dplyr::select(cowcode, cowabb, year)
 ```
 
 ```{r Join country-year terrorism with system composition, cache=T, message=F, warning=F}
@@ -82,9 +81,8 @@ terror_country_year <- left_join(states, terror_count_year) %>%
          cas_rate = ifelse(n_attack == 0, 
                            0, 
                            casualties/n_attack)) %>% 
-  select(-iyear)
+  dplyr::select(-iyear)
 ```
-
 
 ```{r Load VDEM data, cache=T, warning=F, message=F}
 vdem <- read.csv('C:/Users/Christopher/Documents/Data/vdem/vdem/V-Dem-CY-Full+Others-v9.csv') %>% 
@@ -93,7 +91,7 @@ vdem <- read.csv('C:/Users/Christopher/Documents/Data/vdem/vdem/V-Dem-CY-Full+Ot
 
 ```{r Select VDEM variables, cache=T, warning=F, message=F}
 vdem_keep <- vdem %>% 
-  select(year, 
+  dplyr::select(year, 
          cowcode = co_wcode, 
          gdp_pc_log10 = e_migdppcln, #log10 GDP per capita 
          pop = e_mipopula, #population
@@ -124,7 +122,7 @@ vdem_keep <- vdem %>%
          edu_avg = e_peaveduc, #average education years for 15+ YOs
          edu_gini = e_peedgini, #education gini 
          polity2 = e_polity2, #polity2 combnined score 
-         resource_dist_equality = v2xeg_eqdr #equal distribution of resources 
+         resource_dist_equality = v2xeg_eqdr #equal distribution of resources
          ) %>% 
   filter(year >= 1970 & year <= 2007) %>% 
   mutate(weak_dem = ifelse(polity2 >= 1 & polity2 <= 6, 
@@ -136,10 +134,10 @@ vdem_keep <- vdem %>%
          failed_coup = ifelse(coup_desc == 1, 
                               1, 
                               0)) %>% 
-  select(-coup_desc)
+  dplyr::select(-coup_desc)
 
 terror_vdem_country_year <- left_join(terror_country_year, vdem_keep) %>% 
-  select(-cowcode, -n_kill, -n_wound)
+  dplyr::select(-cowcode, -n_kill, -n_wound)
 ```
 
 ```{r AMELIA multiple imputation of missing VDEM values, cache = T, warning=F, message=F, include=F}
@@ -150,7 +148,36 @@ ter_vdem_country_year_amelia <- Amelia::amelia(terror_vdem_country_year,
                                                cs = "cowabb")
 ```
 
-#  
+```{r ZINB number of attacks FULL SAMPLE, cache=T, include=F, warnings = F, message=F}
+
+analysis_imp1 <- ter_vdem_country_year_amelia[1]$imputations[1] %>% data.frame %>% 
+  janitor::clean_names() 
+
+colnames(analysis_imp1) <- stringr::str_replace_all(colnames(analysis_imp1), 
+                                                    "imp1_",
+                                                    "")
+
+mean_pop <- terror_vdem_country_year %>% 
+  group_by(cowabb) %>% 
+  summarise(mean_pop = mean(pop, na.rm = T))
+
+
+
+
+zinb_full <- pscl::zeroinfl(n_attack ~ log10(abs(pop)+1) + gdp_pc_log10 + dem_breakdown + edu_avg + dom_conflict + int_conflict + civ_soc_partic + democracy + weak_dem | log10(pop) + gdp_pc_log10 + edu_avg + dom_conflict + int_conflict + democracy + weak_dem, 
+                      data = analysis_imp1, 
+                      dist = 'negbin')
+
+zinb_full$coefficients$count
+summary(zinb_full)
+```
+
+```{r ZINB predicted values, cache=T, include=F}
+prediction_breakdowns <- analysis_imp1 %>% 
+  summarise(pop = mean(log10(pop)))
+
+```
+
 
 ```{r EBA, cache=T, warning=F, message=F, warning=F}
 library(ExtremeBounds)
@@ -181,18 +208,98 @@ eba <- eba(data = analysis_imp1,
            se.fun = se.robust)
 ```
 
+## 
 
-```{r First EBA histograms, cache=T, warning=F}
-hist(eba)
+```{r EBA Coefplot, cache=T, message=F, warning=F, fig.dim = c(7.5, 5.5), fig.align='center'}
+#Define labels for variables 
+labels <- c(pop = "Population", 
+              gdp_pc_log10 = "Logged GDP PC", 
+              dem_breakdown = "Dem. Breakdowns", 
+              elec_dem = "Elect. Dem.", 
+              lib_dem = "Lib. Dem.", 
+              partic_dem = "Partic. Dem", 
+              egal_dem = "Egal. Dem.",
+              free_express = "Free Expr.", 
+              free_assoc = "Free Assoc.", 
+              civ_soc_partic = "Civ. Soc. Partic.", 
+              barrier_parties = "Pol. Party Barriers", 
+              oppo_party_autonomy = "Oppo. Party Aut.", 
+              free_ac_cult = "Free Ac./Cult. Expr.", 
+              free_relig = "Relig. Free", 
+              social_class_eq = "Class Eq.",
+              social_group_eq = "Group Eq.",
+              cso_enter_exit_reg = "Civ. Soc. Orgs.",
+              cso_rep = "Civ. Soc. Repr.",
+              cso_antisys = "Anti-System Civ. Soc.",
+              relig_org_oppress = "Relig. Repr.",
+              n_coup = "N Coups",
+              gdp_grow = "GDP Growth",
+              int_conflict = "Int. Conflict",
+              dom_conflict = "Dom. Conflict",
+              urbanization = "Urbanization",
+              edu_avg = "15+ Edu. Avg.",
+              edu_gini = "Edu. Ineq.",
+              polity2 = "Polity 2",
+              resource_dist_equality = "Resource Ineq.",
+              weak_dem = "Weak Dem.",
+              democracy = "Full Dem.",
+              failed_coup = "Failed Coup")
+
+eba_coef <- eba$regressions$beta %>% data.frame %>% dplyr::select(-X.Intercept.)
+
+eba_coef_gather <- gather(eba_coef) %>%
+  filter(!is.na(value))
+
+
+ggplot(eba_coef_gather) + 
+  geom_histogram(aes(value), 
+                 bins = 40) +  
+  geom_vline(xintercept = 0, 
+             color = 'red') + 
+  facet_wrap(. ~ key, 
+             scales = 'free', 
+             ncol = 7, 
+             labeller = labeller(key = c(labels))) + 
+  labs(title = "OLS EBA: All Coefficient Histograms") +
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size = 6),
+        axis.text = element_text(size = 5), 
+        plot.title = element_text(size = 15),
+        axis.title = element_blank())
+
 ```
 
-```{r EBA for negative binomial, include=F, cache=T}
-eba_nb <- eba(data = analysis_imp1, 
-              y = "n_attack", 
-              free = free, 
-              focus = focus, 
-              draws = 1000, 
-              reg.fun = glm.nb)
+## 
+
+```{r EBA hist for only 95 significant variables, cache=T, include=T, fig.dim = c(7.5, 5.5), fig.align='center'}
+eba_coef_gather %>% 
+  filter(!is.na(value) & 
+           key %in% c("pop", 
+                   "dem_breakdown", 
+                   "barrier_parties", 
+                   "oppo_party_autonomy", 
+                   "social_group_eq", 
+                   "int_conflict",
+                   "dom_conflict", 
+                   "resource_dist_equality",
+                   "weak_dem",
+                   "polity2", 
+                   "free_assoc")) %>% 
+  ggplot() + 
+  geom_histogram(aes(value), 
+                 bins = 40) +  
+  geom_vline(xintercept = 0, 
+             color = 'red') + 
+  facet_wrap(. ~ key, 
+             scales = 'free', 
+             ncol = 4, 
+             labeller = labeller(key = c(labels))) + 
+  labs(title = "OLS EBA: Notable Coefficient Histograms") +
+  theme(strip.background = element_blank(),
+        strip.text = element_text(),
+        axis.text.x = element_text(size = 7), 
+        plot.title = element_text(size = 15),
+        axis.title = element_blank())
 ```
 
 ```{r EBA for casualty rate, include=F, cache=T}
@@ -204,4 +311,3 @@ eba_cas_rate <- eba(data = analysis_imp1,
            weights = "adj.r.squared", 
            se.fun = se.robust)
 ```
-
